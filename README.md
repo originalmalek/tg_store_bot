@@ -14,11 +14,11 @@ The project use:
 
 
 ## Requirements
-Python==3.8
-requests==2.27.1
-redis==3.2.1
-python-dotenv==0.20.0
-python-telegram-bot===11.1.0
+Python==3.8  
+requests==2.27.1  
+redis==3.2.1  
+python-dotenv==0.20.0  
+python-telegram-bot===11.1.0  
 
 Create bot on [telegram.org](https://t.me/botfather) ang get API key.  
 Create database on [Redis API](https://redis.io/) ang get Database Host, Database Password, Database Port.
