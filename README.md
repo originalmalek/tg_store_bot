@@ -8,7 +8,7 @@ The project create store from [ElasticPath](https://euwest.cm.elasticpath.com/) 
 
 The project use:  
  * [ElasticPath API](https://documentation.elasticpath.com/commerce-cloud/docs/api/);  
- * [Telegram API](https://core.telegram.org/bots/api) with module [pyTelegramBotAPI](https://github.com/python-telegram-bot/python-telegram-bot/wiki/Introduction-to-the-API).
+ * [Telegram API](https://core.telegram.org/bots/api) with module [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot).
  * [Redis API](https://redis.io/) with module [Redis](https://github.com/redis/redis).
 
 
