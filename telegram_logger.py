@@ -1,10 +1,10 @@
-import telebot
+from telegram import Bot
 import logging
 
 
 class MyLogsHandler(logging.Handler):
     def __init__(self, level=logging.NOTSET, telegram_token=None, chat_id=None):
-        self.bot = telebot.TeleBot(telegram_token)
+        self.bot = Bot(telegram_token)
         self.chat_id = chat_id
         super().__init__(level=level)
 
