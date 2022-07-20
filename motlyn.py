@@ -70,7 +70,7 @@ def add_order_to_crm(chat_id, email, access_token):
 	json_data = {
 		'data': {
 			'type': 'customer',
-			'name': f'{chat_id}',
+			'name': str(chat_id),
 			'email': email,
 			'password': 'mysecretpassword',
 		},
