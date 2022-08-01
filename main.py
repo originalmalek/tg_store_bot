@@ -1,15 +1,74 @@
+import json
 import logging
-import redis
+import os
 
-from textwrap import dedent
+import redis
+import requests
+
 from telegram_logger import MyLogsHandler
 from dotenv import load_dotenv
-from motlyn import *
+from motlyn_api import get_cart, add_item_to_cart, get_access_token, delete_cart_item, add_order_to_crm, get_product_data
+from motlyn_api import get_products
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Filters, Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
 logger = logging.getLogger('TG ElasticPath Bot')
+
+
+def generate_menu_markup(access_token):
+	products = get_products(access_token)
+	markup = []
+
+	for product in products['data']:
+		markup.append([InlineKeyboardButton(product['name'], callback_data=product['id'])])
+	markup.append([InlineKeyboardButton('CART 🛒', callback_data='cart')])
+	return markup
+
+
+def generate_product_markup(product_sku):
+	back_button = [InlineKeyboardButton("Back", callback_data='{"action": "go_back"}')]
+	add_to_cart_keyboard = []
+	for quantity in [1, 5, 10]:
+		callback_data = str({"action": "add_to_cart", "sku": product_sku, "quantity": quantity}).replace("'", '"')
+		add_to_cart_keyboard.append(InlineKeyboardButton(f"{quantity}kg",
+		                                                 callback_data=callback_data))
+	keyboard = [add_to_cart_keyboard, back_button]
+
+	return InlineKeyboardMarkup(keyboard)
+
+
+def generate_cart_markup(cart):
+	delete_from_cart_keyboard = []
+
+	for product in cart['data']:
+		product_name = product['name']
+		product_id = product['id']
+
+		callback_data = str({"action": "del", "id": f"{product_id}"}).replace("'", '"')
+
+		delete_from_cart_keyboard.append([InlineKeyboardButton(f"Delete {product_name}", callback_data=callback_data)])
+
+	back_button = [InlineKeyboardButton("Back", callback_data='{"action": "go_back"}')]
+	pay_button = [InlineKeyboardButton("Pay", callback_data='{"action": "pay"}')]
+	delete_from_cart_keyboard.append(back_button)
+	delete_from_cart_keyboard.append(pay_button)
+	keyboard = delete_from_cart_keyboard
+	return keyboard
+
+
+def download_product_picture(product_image_id, access_token):
+	headers = {
+		'Authorization': access_token,
+	}
+	image_response = requests.get(f'https://api.moltin.com/v2/files/{product_image_id}', headers=headers)
+	image_response.raise_for_status()
+
+	image_url = image_response.json()['data']['link']['href']
+
+	if not os.path.exists(f'pictures/{product_image_id}.jpeg'):
+		with open(f'pictures/{product_image_id}.jpeg', 'wb') as f:
+			f.write(requests.get(image_url).content)
 
 
 def send_user_cart(bot, query, access_token):
@@ -23,12 +82,8 @@ def send_user_cart(bot, query, access_token):
         product_quantity = product['quantity']
         product_total_price = product['meta']['display_price']['with_tax']['value']['formatted']
 
-        message += f'''\
-        
-{product_name}
-{product_description}
-{product_quantity}kg for {product_total_price}
-'''
+        message += f'{product_name}\n{product_description}\n' \
+                   f'{product_quantity}kg for {product_total_price}\n\n'
 
     total_price = cart['meta']['display_price']['with_tax']['formatted']
     message += f'Total price: {total_price}'
@@ -49,9 +104,9 @@ def get_database_connection():
 
     global _database
     if _database is None:
-        database_password = os.getenv("DATABASE_PASSWORD")
-        database_host = os.getenv("DATABASE_HOST")
-        database_port = os.getenv("DATABASE_PORT")
+        database_password = os.getenv('DATABASE_PASSWORD')
+        database_host = os.getenv('DATABASE_HOST')
+        database_port = os.getenv('DATABASE_PORT')
         _database = redis.Redis(host=database_host, port=database_port, password=database_password)
     return _database
 
@@ -102,20 +157,16 @@ def handle_menu(bot, update, access_token):
         download_product_picture(product_image_id, access_token)
 
         reply_markup = generate_product_markup(product_sku)
-        caption = f"""\
-Product info: {product_name}
-{product_description}
-{product_price} per kg
-        """
-        print(caption)
-        print(repr(dedent(caption)))
-        print(repr(caption))
-        print(dedent(caption))
-        bot.send_photo(caption=caption.strip() ,
-                       chat_id=query.message.chat_id,
-                       photo=open(f'pictures/{product_image_id}.jpeg', 'rb'),
-                       reply_markup=reply_markup,
-                       )
+
+        caption = f'''Product info:\n\n{product_name}\n\n{product_description}
+                                \n{product_price} per kg'''
+
+        with open(f'pictures/{product_image_id}.jpeg', 'rb') as photo:
+            bot.send_photo(caption=caption,
+                           chat_id=query.message.chat_id,
+                           photo=photo,
+                           reply_markup=reply_markup,
+                           )
 
         bot.delete_message(chat_id=query.message.chat_id,
                            message_id=query.message.message_id)
@@ -134,7 +185,7 @@ def handle_cart(bot, update, access_token):
                          reply_markup=reply_markup)
 
         bot.delete_message(chat_id=query.message.chat_id,
-                          message_id=query.message.message_id)
+                           message_id=query.message.message_id)
         return 'HANDLE_MENU'
     if json.loads(query.data)['action'] == 'pay':
         bot.send_message(text='Please send you email:',
@@ -156,7 +207,7 @@ def handle_waiting_email(bot, update, access_token):
     add_order_to_crm(update.message.chat_id, update.message.text, access_token)
 
     bot.send_message(text=f'''You have sent the email: {update.message.text}
-                            For new order click /start''',
+                            \nFor new order click /start''',
                      chat_id=update.message.chat_id)
 
     bot.delete_message(chat_id=update.message.chat_id,
@@ -180,7 +231,7 @@ def handle_users_reply(bot, update):
     if user_reply == '/start':
         user_state = 'START'
     else:
-        user_state = db.get(chat_id).decode("utf-8")
+        user_state = db.get(chat_id).decode('utf-8')
 
     states_functions = {
         'START': start,
@@ -207,7 +258,6 @@ if __name__ == '__main__':
     telegram_api_key = os.getenv('TELEGRAM_API_KEY')
     telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
 
-
     my_log_handler = MyLogsHandler(level=logging.DEBUG, telegram_token=telegram_api_key,
                                    chat_id=telegram_chat_id)
     logging.basicConfig(level=20)
@@ -225,4 +275,3 @@ if __name__ == '__main__':
         updater.start_polling()
     except Exception as err:
         logger.exception('Bot TG got an error')
-        logger.exception(err, exc_info=True)
