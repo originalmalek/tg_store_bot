@@ -3,72 +3,18 @@ import logging
 import os
 
 import redis
-import requests
 
+from textwrap import dedent
 from telegram_logger import MyLogsHandler
 from dotenv import load_dotenv
-from motlyn_api import get_cart, add_item_to_cart, get_access_token, delete_cart_item, add_order_to_crm, get_product_data
-from motlyn_api import get_products
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from motlin_api import get_cart, add_item_to_cart, get_access_token, get_product_data
+from motlin_api import delete_cart_item, add_order_to_crm, download_product_picture
+from telegram_markup import generate_menu_markup, generate_product_markup, generate_cart_markup
+from telegram import InlineKeyboardMarkup
 from telegram.ext import Filters, Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
 logger = logging.getLogger('TG ElasticPath Bot')
-
-
-def generate_menu_markup(access_token):
-	products = get_products(access_token)
-	markup = []
-
-	for product in products['data']:
-		markup.append([InlineKeyboardButton(product['name'], callback_data=product['id'])])
-	markup.append([InlineKeyboardButton('CART 🛒', callback_data='cart')])
-	return markup
-
-
-def generate_product_markup(product_sku):
-	back_button = [InlineKeyboardButton("Back", callback_data='{"action": "go_back"}')]
-	add_to_cart_keyboard = []
-	for quantity in [1, 5, 10]:
-		callback_data = str({"action": "add_to_cart", "sku": product_sku, "quantity": quantity}).replace("'", '"')
-		add_to_cart_keyboard.append(InlineKeyboardButton(f"{quantity}kg",
-		                                                 callback_data=callback_data))
-	keyboard = [add_to_cart_keyboard, back_button]
-
-	return InlineKeyboardMarkup(keyboard)
-
-
-def generate_cart_markup(cart):
-	delete_from_cart_keyboard = []
-
-	for product in cart['data']:
-		product_name = product['name']
-		product_id = product['id']
-
-		callback_data = str({"action": "del", "id": f"{product_id}"}).replace("'", '"')
-
-		delete_from_cart_keyboard.append([InlineKeyboardButton(f"Delete {product_name}", callback_data=callback_data)])
-
-	back_button = [InlineKeyboardButton("Back", callback_data='{"action": "go_back"}')]
-	pay_button = [InlineKeyboardButton("Pay", callback_data='{"action": "pay"}')]
-	delete_from_cart_keyboard.append(back_button)
-	delete_from_cart_keyboard.append(pay_button)
-	keyboard = delete_from_cart_keyboard
-	return keyboard
-
-
-def download_product_picture(product_image_id, access_token):
-	headers = {
-		'Authorization': access_token,
-	}
-	image_response = requests.get(f'https://api.moltin.com/v2/files/{product_image_id}', headers=headers)
-	image_response.raise_for_status()
-
-	image_url = image_response.json()['data']['link']['href']
-
-	if not os.path.exists(f'pictures/{product_image_id}.jpeg'):
-		with open(f'pictures/{product_image_id}.jpeg', 'wb') as f:
-			f.write(requests.get(image_url).content)
 
 
 def send_user_cart(bot, query, access_token):
@@ -82,8 +28,8 @@ def send_user_cart(bot, query, access_token):
         product_quantity = product['quantity']
         product_total_price = product['meta']['display_price']['with_tax']['value']['formatted']
 
-        message += f'{product_name}\n{product_description}\n' \
-                   f'{product_quantity}kg for {product_total_price}\n\n'
+        message += dedent(f'''{product_name}\n{product_description}
+                   {product_quantity}kg for {product_total_price}\n\n''')
 
     total_price = cart['meta']['display_price']['with_tax']['formatted']
     message += f'Total price: {total_price}'
@@ -101,7 +47,6 @@ def send_user_cart(bot, query, access_token):
 
 
 def get_database_connection():
-
     global _database
     if _database is None:
         database_password = os.getenv('DATABASE_PASSWORD')
@@ -124,8 +69,8 @@ def handle_description(bot, update, access_token):
         reply_markup = InlineKeyboardMarkup(generate_menu_markup(access_token))
 
         bot.send_message(text='Please choose product:',
-                              chat_id=query.message.chat_id,
-                              reply_markup=reply_markup)
+                         chat_id=query.message.chat_id,
+                         reply_markup=reply_markup)
 
         bot.delete_message(chat_id=query.message.chat_id,
                            message_id=query.message.message_id)
@@ -189,7 +134,7 @@ def handle_cart(bot, update, access_token):
         return 'HANDLE_MENU'
     if json.loads(query.data)['action'] == 'pay':
         bot.send_message(text='Please send you email:',
-                         chat_id=query.message.chat_id,)
+                         chat_id=query.message.chat_id, )
 
         bot.delete_message(chat_id=query.message.chat_id,
                            message_id=query.message.message_id)
@@ -203,7 +148,6 @@ def handle_cart(bot, update, access_token):
 
 
 def handle_waiting_email(bot, update, access_token):
-
     add_order_to_crm(update.message.chat_id, update.message.text, access_token)
 
     bot.send_message(text=f'''You have sent the email: {update.message.text}
