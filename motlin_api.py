@@ -110,3 +110,5 @@ def download_product_picture(product_image_id, access_token):
 	if not os.path.exists(f'pictures/{product_image_id}.jpeg'):
 		with open(f'pictures/{product_image_id}.jpeg', 'wb') as f:
 			f.write(requests.get(image_url).content) 
+
+			
