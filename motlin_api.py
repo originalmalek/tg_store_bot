@@ -96,19 +96,3 @@ def get_product_data(query, access_token):
 	product_response = requests.get(f'https://api.moltin.com/v2/products/{query.data}', headers=headers)
 	product_response.raise_for_status()
 	return product_response.json()['data']
-
-
-def download_product_picture(product_image_id, access_token):
-	headers = {
-		'Authorization': access_token,
-	}
-	image_response = requests.get(f'https://api.moltin.com/v2/files/{product_image_id}', headers=headers)
-	image_response.raise_for_status()
-
-	image_url = image_response.json()['data']['link']['href']
-
-	if not os.path.exists(f'pictures/{product_image_id}.jpeg'):
-		with open(f'pictures/{product_image_id}.jpeg', 'wb') as f:
-			f.write(requests.get(image_url).content) 
-
-			
