@@ -3,11 +3,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 def generate_menu_markup(access_token):
 	products = get_products(access_token)
-	markup = []
 
-	for product in products['data']:
-		markup.append([InlineKeyboardButton(product['name'], callback_data=product['id'])])
+	markup = [([InlineKeyboardButton(product['name'], callback_data=product['id'])]) for product in products['data']]
 	markup.append([InlineKeyboardButton('CART 🛒', callback_data='cart')])
+
 	return markup
 
 
@@ -24,7 +23,7 @@ def generate_product_markup(product_sku):
 
 
 def generate_cart_markup(cart):
-  delete_from_cart_keyboard = []
+	delete_from_cart_keyboard = []
 
 	for product in cart['data']:
 		product_name = product['name']
