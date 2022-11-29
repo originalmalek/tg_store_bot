@@ -3,7 +3,7 @@ import os
 
 import requests
 
-from datetime import timedelta, datetime
+from datetime import datetime
 
 EP_ACCESS_TOKEN = None
 EP_TOKEN_TIME = None
